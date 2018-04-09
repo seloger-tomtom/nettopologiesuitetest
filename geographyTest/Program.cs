@@ -6,10 +6,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Web.Http.ModelBinding;
 using NetTopologySuite.Algorithm;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.Mathematics;
 using NetTopologySuite.Triangulate.QuadEdge;
+using System.Diagnostics;
 
 namespace geographyTest
 {
@@ -18,7 +20,8 @@ namespace geographyTest
         static void Main(string[] args)
         {
 
-            
+            var datas = new PolygonDatas();
+
             string polygonString =
                 @"POLYGON((-28.7890625 46.42781304588344,-15.95703125 54.51262233957747,-0.3125 59.881625088941696,19.7265625 53.21704316159465,17.44140625 26.41817755694856,4.609375 40.03328029340769,6.015625 27.670622439182004,-12.96875 31.19093926426022,-23.69140625 21.60303052366203,-28.701171875 34.65737205086236,-31.9091796875 40.80277883990915,-28.7890625 46.42781304588344))";
             string pointInteriorString = @"POINT(-5.5859375 49.48720849371433)";
@@ -28,12 +31,14 @@ namespace geographyTest
 
             WKTReader reader = new WKTReader();
             var polygon = reader.Read(polygonString);
-            var pointInterior = (IPoint) reader.Read(pointInteriorString);
-            var pointExterior = (IPoint) reader.Read(pointExteriorString);
-            var complexInteriorPoint = (IPoint) reader.Read(complexInteriorPointString);
-            var complexExteriorPoint = (IPoint) reader.Read(complexExteriorPointString);
+            var pointInterior = (IPoint)reader.Read(pointInteriorString);
+            var pointExterior = (IPoint)reader.Read(pointExteriorString);
+            var complexInteriorPoint = (IPoint)reader.Read(complexInteriorPointString);
+            var complexExteriorPoint = (IPoint)reader.Read(complexExteriorPointString);
+            var megaPolygonGeometry = reader.Read(datas.MegaPolygon);
+            var pointInMegaPolygon = reader.Read(datas.PointInMegaPolygon);
 
-            var test = (ILinearRing) polygon.Boundary;
+            var test = (ILinearRing)polygon.Boundary;
 
             var listTest = new List<int>();
             for (int i = 0; i < 100000; i++)
@@ -41,52 +46,86 @@ namespace geographyTest
                 listTest.Add(i);
             }
 
-            Parallel.ForEach(listTest, (i) =>
-            {
-                var polygonEnvelope = test.Contains(pointInterior);
-                var polygonEnvelope2 = test.Contains(complexInteriorPoint);
-                var polygonEnvelope3 = test.Contains(pointExterior);
-                var polygonEnvelope4 = test.Contains(complexExteriorPoint);
+            var polygonEnvelope = CoordinateExtensions.Contains(test, pointInterior);
 
-                Console.WriteLine($"{i} souldBeTruePI : {polygonEnvelope}");
-                Console.WriteLine($"{i} souldBeFalsePE : {polygonEnvelope2}");
-                Console.WriteLine($"{i} souldBeTruePIC : {polygonEnvelope3}");
-                Console.WriteLine($"{i} souldBeFalsePEC : {polygonEnvelope4}");
-            });
+            var megaPolygon = megaPolygonGeometry as MultiPolygon;
+            var iscontains = megaPolygon.Contains( (IGeometry)polygon );
+
+            bool boolean;
+            foreach (var poly in megaPolygon.Geometries)
+            {
+                if(poly.Boundary is IGeometryCollection)
+                {
+                    foreach(var ring in ((IGeometryCollection)poly.Boundary).Geometries)
+                    {
+                        boolean = CoordinateExtensions.Contains((ILinearRing)ring, (IPoint)pointInMegaPolygon);
+                        if (boolean)
+                        {
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    boolean = CoordinateExtensions.Contains((ILinearRing)poly.Boundary, (IPoint)pointInMegaPolygon);
+                    if (boolean)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            Debugger.Break();
+
+            var polygonEnvelope1 = test.Contains(pointInterior);
+
+            var polygonEnvelope2 = CoordinateExtensions.Contains(test, pointInterior);
+            //Parallel.ForEach(listTest, (i) =>
+            //{
+            //    var polygonEnvelope = test.Contains(pointInterior);
+            //    var polygonEnvelope2 = test.Contains(complexInteriorPoint);
+            //    var polygonEnvelope3 = test.Contains(pointExterior);
+            //    var polygonEnvelope4 = test.Contains(complexExteriorPoint);
+
+            //    Console.WriteLine($"{i} souldBeTruePI : {polygonEnvelope}");
+            //    Console.WriteLine($"{i} souldBeFalsePE : {polygonEnvelope2}");
+            //    Console.WriteLine($"{i} souldBeTruePIC : {polygonEnvelope3}");
+            //    Console.WriteLine($"{i} souldBeFalsePEC : {polygonEnvelope4}");
+            //});
+
+            ////Console.Read();
+
+            //Parallel.ForEach(listTest, (i) =>
+            //{
+            //    var polygonEnvelope = CoordinateExtensions.Contains(test, pointInterior);
+            //    var polygonEnvelope2 = CoordinateExtensions.Contains(test, complexInteriorPoint);
+            //    var polygonEnvelope3 = CoordinateExtensions.Contains(test, pointExterior);
+            //    var polygonEnvelope4 = CoordinateExtensions.Contains(test, complexExteriorPoint);
+
+            //    Console.WriteLine($"{i} souldBeTruePI : {polygonEnvelope}");
+            //    Console.WriteLine($"{i} souldBeFalsePE : {polygonEnvelope2}");
+            //    Console.WriteLine($"{i} souldBeTruePIC : {polygonEnvelope3}");
+            //    Console.WriteLine($"{i} souldBeFalsePEC : {polygonEnvelope4}");
+            //});
 
             //Console.Read();
-
-            Parallel.ForEach(listTest, (i) =>
-            {
-                var polygonEnvelope = CoordinateExtensions.Contains(test, pointInterior);
-                var polygonEnvelope2 = CoordinateExtensions.Contains(test, complexInteriorPoint);
-                var polygonEnvelope3 = CoordinateExtensions.Contains(test, pointExterior);
-                var polygonEnvelope4 = CoordinateExtensions.Contains(test, complexExteriorPoint);
-
-                Console.WriteLine($"{i} souldBeTruePI : {polygonEnvelope}");
-                Console.WriteLine($"{i} souldBeFalsePE : {polygonEnvelope2}");
-                Console.WriteLine($"{i} souldBeTruePIC : {polygonEnvelope3}");
-                Console.WriteLine($"{i} souldBeFalsePEC : {polygonEnvelope4}");
-            });
-         
-            Console.Read();
         }
     }
 
     public static class CoordinateExtensions
     {
-        public static bool Contains(this IGeometry geo, IPoint point)
-        {
-            if (geo.GeometryType.ToLower() == "multipolygon")
-            {
-            }
-            else
-            {
-            }
+        //public static bool Contains(this IGeometry geo, IPoint point)
+        //{
+        //    if (geo.GeometryType.ToLower() == "multipolygon")
+        //    {
+        //    }
+        //    else
+        //    {
+        //    }
 
 
-            return Contains((ILinearRing) geo, point);
-        }
+        //    return Contains((ILinearRing) geo, point);
+        //}
 
         /// <summary>
         /// 
@@ -128,7 +167,7 @@ namespace geographyTest
             segmentsInSelectedCartesian.Add(new LineSegment(middleCoordinate, segmentsInSelectedCartesian[0].P0));
 
             var newPolygonCoordinates = segmentsInSelectedCartesian
-                .SelectMany(segment => new List<Coordinate>() {segment.P0, segment.P1}).ToArray();
+                .SelectMany(segment => new List<Coordinate>() { segment.P0, segment.P1 }).ToArray();
             var newPolygon = Geometry.DefaultFactory.CreatePolygon(newPolygonCoordinates);
             if (newPolygon.NumPoints > 10)
             {
@@ -247,14 +286,6 @@ namespace geographyTest
         //    return middle;
         //}
 
-        public static Coordinate Intersection(this Coordinate a, Coordinate b, Coordinate c, double rotation)
-        {
-            var lineIntersector = new NonRobustLineIntersector();
-            lineIntersector.ComputeIntersection(a, b, c);
-            var coordinate = lineIntersector.GetIntersection(0);
-            var intersection = lineIntersector.GetIntersection(1);
-            return null;
-        }
     }
 
     public class CoordinatesComparer : IComparer<Coordinate>
