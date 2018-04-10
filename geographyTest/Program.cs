@@ -38,6 +38,10 @@ namespace geographyTest
             var megaPolygonGeometry = reader.Read(datas.MegaPolygon);
             var pointInMegaPolygon = reader.Read(datas.PointInMegaPolygon);
 
+
+            var polytest = reader.Read(
+                "POLYGON((2.34101 48.853762, 2.347102 48.863509, 2.346531 48.854518, 2.365167 48.853713, 2.364122 48.8675, 2.378453 48.853813, 2.376563 48.843794, 2.38798 48.840337, 2.398862 48.842241, 2.396142 48.849886, 2.405616 48.840872, 2.39449 48.837434, 2.400573 48.832667, 2.395377 48.828724, 2.379372 48.834931, 2.386098 48.824121, 2.347438869120697 48.830460147183075, 2.34101 48.853762))");
+
             var test = (ILinearRing)polygon.Boundary;
 
             var listTest = new List<int>();
@@ -46,7 +50,7 @@ namespace geographyTest
                 listTest.Add(i);
             }
 
-            var polygonEnvelope = CoordinateExtensions.Contains(test, pointInterior);
+            //var polygonEnvelope = CoordinateExtensions.Contains(test, pointInterior);
 
             var megaPolygon = megaPolygonGeometry as MultiPolygon;
             var iscontains = megaPolygon.Contains( (IGeometry)polygon );
@@ -145,11 +149,12 @@ namespace geographyTest
             var pointCoordinate = centerPointSegment.P1;
             var middleCoordinate = centerPointSegment.MidPoint;
 
-            List<LineSegment> segments = new List<LineSegment>(matrix.Length - 1);
+            List<ILineString> segments = new List<ILineString>(matrix.Length - 1);
             for (int i = 0; i < matrix.LongLength - 1; i++)
             {
-                segments.Add(new LineSegment(matrix[i], matrix[i + 1]));
+                segments.Add(Geometry.DefaultFactory.CreateLineString(new Coordinate[] { matrix[i], matrix[i + 1] }));
             }
+           
 
             var comparer = new CoordinatesComparer();
 
@@ -157,17 +162,23 @@ namespace geographyTest
             int pointPosition = comparer.Compare(centerCoordinate, pointCoordinate);
 
             //recuperation des segments correspondant a la face
-            var segmentsInSelectedCartesian = segments.Where(segment =>
-                    comparer.Compare(centerCoordinate, segment.P0) == pointPosition ||
-                    comparer.Compare(centerCoordinate, segment.P1) == pointPosition).OrderBy(segment => segment.MaxY)
-                .ThenBy(segment => segment.MaxX).ToList();
+            var segmentsInSelectedCartesian = segments.Where(segment => comparer.Compare(centerCoordinate, segment.StartPoint.Coordinate) == pointPosition ||
+                    comparer.Compare(centerCoordinate, segment.EndPoint.Coordinate) == pointPosition).ToList();
+
+            ILineString partPolygon = new LineString(segmentsInSelectedCartesian.SelectMany(x=> x.Coordinates).ToArray());
             segmentsInSelectedCartesian.Add(
-                new LineSegment(segmentsInSelectedCartesian[segmentsInSelectedCartesian.Count - 1].P1,
-                    middleCoordinate));
-            segmentsInSelectedCartesian.Add(new LineSegment(middleCoordinate, segmentsInSelectedCartesian[0].P0));
+                new LineString(new[]{partPolygon.EndPoint.Coordinate,
+                    middleCoordinate}));
+            segmentsInSelectedCartesian.Add(new LineString(new []{ partPolygon.StartPoint.Coordinate, middleCoordinate}));
+            var coords = segmentsInSelectedCartesian.SelectMany(x => x.Coordinates).Distinct().ToList();
+            coords.Add(coords[0]);
+
+            partPolygon = new LinearRing(coords.ToArray());
+
+            //var polygon = Geometry.DefaultFactory.CoordinateSequenceFactory.Create()
 
             var newPolygonCoordinates = segmentsInSelectedCartesian
-                .SelectMany(segment => new List<Coordinate>() { segment.P0, segment.P1 }).ToArray();
+                .SelectMany(segment => new List<Coordinate>() { segment.StartPoint.Coordinate, segment.EndPoint.Coordinate }).ToArray();
             var newPolygon = Geometry.DefaultFactory.CreatePolygon(newPolygonCoordinates);
             if (newPolygon.NumPoints > 10)
             {
